@@ -17,8 +17,19 @@ class Twist:
     def __init__(self, publisher: Publisher, topic: str = "/cmd_vel"):
         self.publisher = publisher
         self.topic = topic
+        self._advertised = False
+
+    def _ensure_advertised(self):
+        if not self._advertised:
+            self.publisher.send({
+                "op": "advertise",
+                "topic": self.topic,
+                "type": "geometry_msgs/TwistStamped"
+            })
+            self._advertised = True
 
     def publish(self, linear: List[Any], angular: List[Any]):
+        self._ensure_advertised()
         linear_f = [to_float(val) for val in linear]
         angular_f = [to_float(val) for val in angular]
 
@@ -26,8 +37,11 @@ class Twist:
             "op": "publish",
             "topic": self.topic,
             "msg": {
-                "linear": {"x": linear_f[0], "y": 0, "z": 0},
-                "angular": {"x": 0, "y": 0, "z": angular_f[2]}
+                "header": {},
+                "twist": {
+                    "linear": {"x": linear_f[0], "y": 0, "z": 0},
+                    "angular": {"x": 0, "y": 0, "z": angular_f[2]}
+                }
             }
         }
         self.publisher.send(msg)
@@ -41,7 +55,7 @@ class Twist:
         duration_f = [to_float(val) for val in duration_seq]
 
         for i in range(len(duration_f)):
-            l = linear_flat[i*3:(i+1)*3]
-            a = angular_flat[i*3:(i+1)*3]
-            self.publish(l, a)
+            linear = linear_flat[i*3:(i+1)*3]
+            angular = angular_flat[i*3:(i+1)*3]
+            self.publish(linear, angular)
             time.sleep(duration_f[i])
