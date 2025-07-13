@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  sim:
+    build: ./ros2-gazebo
+    container_name: sim
+    hostname: sim
+    networks: [rosnet]
+    ports:
+      - "9090:9090"  # rosbridge websocket
+    environment:
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix  # comment out for headless
+
+
+
+networks:
+  rosnet:
