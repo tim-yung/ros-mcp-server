@@ -3,7 +3,7 @@
       "command": "uv",
       "args": [
         "--directory",
-        "/home/tim_yung/SynologyDrive/1_projects/41_ros-mcp-server/ros-mcp-server",
+        "<ABSOLUTE_PATH_TO_ROS_MCP_SERVER>",
         "run",
         "server.py"
       ],

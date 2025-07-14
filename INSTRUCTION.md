@@ -2,74 +2,9 @@
 
 This checklist gets you from a blank Ubuntu ↔ Gazebo ↔ rosbridge ↔ FastMCP pipeline to a running TurtleBot3 simulation you can drive with AI.
 
----
-## 1. Install ROS 2 Rolling
-Follow the official binary installation instructions:
-https://docs.ros.org/en/rolling/Installation/Ubuntu-Install-Debians.html
+## (A) Simulation Setup
 
-*Reboot or open a fresh shell after finishing.*
-
----
-## 2. Install rosbridge for ROS 2
-```
-sudo apt install ros-rolling-rosbridge-server
-```
-Reference: https://github.com/RobotWebTools/rosbridge_suite
-
----
-## 3. Install Gazebo (Ignition / "gz-sim")
-ROS 2 Rolling already pulls the matching Gazebo packages, but to install manually:
-```
-sudo apt install ros-rolling-gz-sim ros-rolling-ros-gz-sim
-```
-Upstream docs: https://gazebosim.org/docs
-
----
-## 4. Install TurtleBot3 packages
-```
-sudo apt install ros-rolling-turtlebot3-gazebo ros-rolling-turtlebot3-msgs
-```
-Reference: https://github.com/ROBOTIS-GIT/turtlebot3
-
----
-## 5. Run rosbridge server
-```bash
-source /opt/ros/rolling/setup.bash
-ros2 launch rosbridge_server rosbridge_websocket_launch.xml
-# websockets now listening on ws://<HOST>:9090
-```
-
----
-## 6. Launch Gazebo with a TurtleBot3 world
-```bash
-source /opt/ros/rolling/setup.bash
-export TURTLEBOT3_MODEL=burger   # or waffle
-ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
-```
-Gazebo GUI opens; the robot publishes `/cmd_vel`, `/camera/image_raw`, `/joint_states`, etc.
-
----
-## 7. Run the ROS-MCP Server
-```bash
-cd ~/SynologyDrive/1_projects/41_ros-mcp-server/ros-mcp-server
-uv run python server.py
-```
-You should see:
-```
-[FastMCP] WebSocketManager connected to rosbridge at <IP> : 9090
-[FastMCP] Starting ros-mcp-server ... waiting for tool calls
-```
-The server now exposes MCP tools such as `get_topics`, `pub_twist`, `sub_image`, … via JSON-RPC (stdio). Windsurf’s MCP panel can talk to it directly.
-
----
-## Smoke-Test
-(See step 8 for a Docker-Compose alternative.)
-
-1. From an MCP client, call `pub_twist` with `{ "linear": [0.2,0,0], "angular": [0,0,0] }`.
-2. The TurtleBot3 should drive forward in Gazebo.
-
----
-## 8. One-command Docker Compose setup
+### (A1) Docker-based Simulation Setup
 If you prefer an all-in-one container solution (useful for teammates):
 
 1. Ensure Docker and docker-compose v2 are installed on the host.
@@ -97,34 +32,99 @@ If you prefer an all-in-one container solution (useful for teammates):
 
 3. Optional: remove the `DISPLAY` mapping in `docker/docker-compose.yml` to run Gazebo headless on servers without GUI.
 
-### Connecting your MCP server (Windsurf)
-Run the MCP server on your host (or any machine that can reach `localhost:9090`).
+---
 
-If using Windsurf’s `mcp_config.json`, wrap the command with environment variables so `server.py` points to Docker rosbridge:
+### (A2) Manual Simulation Setup
+
+---
+#### 1. Install ROS 2 Rolling
+Follow the official binary installation instructions:
+https://docs.ros.org/en/rolling/Installation/Ubuntu-Install-Debians.html
+
+*Reboot or open a fresh shell after finishing.*
+
+---
+#### 2. Install rosbridge for ROS 2
+```
+sudo apt install ros-rolling-rosbridge-server
+```
+Reference: https://github.com/RobotWebTools/rosbridge_suite
+
+---
+#### 3. Install Gazebo (Ignition / "gz-sim")
+ROS 2 Rolling already pulls the matching Gazebo packages, but to install manually:
+```
+sudo apt install ros-rolling-gz-sim ros-rolling-ros-gz-sim
+```
+Upstream docs: https://gazebosim.org/docs
+
+---
+#### 4. Install TurtleBot3 packages
+```
+sudo apt install ros-rolling-turtlebot3-gazebo ros-rolling-turtlebot3-msgs
+```
+Reference: https://github.com/ROBOTIS-GIT/turtlebot3
+
+---
+#### 5. Run rosbridge server
+```bash
+source /opt/ros/rolling/setup.bash
+ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+# websockets now listening on ws://<HOST>:9090
+```
+
+---
+#### 6. Launch Gazebo with a TurtleBot3 world
+```bash
+source /opt/ros/rolling/setup.bash
+export TURTLEBOT3_MODEL=burger   # or waffle
+ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
+```
+Gazebo GUI opens; the robot publishes `/cmd_vel`, `/camera/image_raw`, `/joint_states`, etc.
+
+---
+
+
+## (B) AI Agent Setup
+
+### Connecting your MCP server (LangGraph Agent)
+
+Once `docker compose up` is running, open a **new terminal** and launch the LangGraph agent:
+
+```bash
+cd agent
+uv run langgraph dev
+```
+
+The terminal will print a Studio URL similar to:
+
+```
+https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024
+```
+
+Open this link in your browser to chat with the agent and issue MCP tool calls.
+
+#### Prerequisites
+1. **LangSmith account (free)** – required to access LangGraph Studio.
+2. **Environment variables** – copy `agent/.env.template` to `agent/.env` and fill in:
+   * `OPENAI_API_KEY` (required)
+   * `LANGCHAIN_API_KEY`, `LANGCHAIN_ENDPOINT` (optional for LangSmith tracing).
+
+#### Initial configuration
+Edit `agent/src/react_agent/mcp_config.json` so that the `directories` field points to the **absolute path** of your local `ros-mcp-server` directory, e.g.
+
 ```json
-"ros-mcp-server": {
-  "command": "env",
-  "args": [
-    "ROSBRIDGE_IP=127.0.0.1",
-    "LOCAL_IP=127.0.0.1",
-    "uv",
-    "--directory",
-    "/path/to/ros-mcp-server",
-    "run",
-    "server.py"
-  ]
+{
+  "directories": ["<ABSOLUTE_PATH_TO_ROS_MCP_SERVER>"]
 }
 ```
-(Alternatively hard-code `LOCAL_IP` / `ROSBRIDGE_IP` inside `server.py` to `"127.0.0.1"`.)
 
-The `docker/` directory contains:
-* `docker-compose.yml`
-* `ros2-gazebo/`  – Dockerfile + launch script
-* `mcp-server/`   – Dockerfile for FastMCP server
+Make sure this path is correct before starting the agent.
 
-After `docker compose up` finishes, visit Gazebo GUI (if mapped) and test the same MCP `pub_twist` call.
 
-1. From an MCP client, call `pub_twist` with `{ "linear": [0.2,0,0], "angular": [0,0,0] }`.
+After `docker compose up` finishes, visit Gazebo GUI (if mapped) and test the AI agent..
+
+1. From Langgraph Studio, ask the robot to move forward.
 2. The TurtleBot3 should drive forward in Gazebo.
 
 If you see movement, the full stack is working!
